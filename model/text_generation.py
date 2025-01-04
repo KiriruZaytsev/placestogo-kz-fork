@@ -12,7 +12,7 @@ emb_model.to('cuda')
 client = chromadb.Client()
 collection = client.create_collection(name='placestogo')
 
-client = OpenAI(base_url='http://localhost:8000/v1',
+llm_client = OpenAI(base_url='http://localhost:8000/v1',
                 api_key='token_abc123')
 SYS_ANSW_PROMPT = '''Ты русскоязычный туристический гид. Тебе нужно посоветовать гостю, \\
 какие места из предложенного контекста можно посетить. Нужно советовать места только из предложенного контекста. \\
@@ -80,9 +80,9 @@ def get_answer_llm(query: str) -> tp.Tuple[str, str]:
     '''
     retrieved_result = process_user_query(query=query)
     context = '; '.join(retrieved_result['documents'][0])
-    completion = client.chat.completions.create(model='RefalMachine/ruadapt_qwen2.5_3B_ext_u48_instruct_v4',
-                                                messages=[{'role': 'system', 'content': SYS_ANSW_PROMPT + context},
-                                                          {'role': 'user', 'content': query}])
+    completion = llm_client.chat.completions.create(model='RefalMachine/ruadapt_qwen2.5_3B_ext_u48_instruct_v4',
+                                                    messages=[{'role': 'system', 'content': SYS_ANSW_PROMPT + context},
+                                                              {'role': 'user', 'content': query}])
     return completion.choices[0].message.content
 
 df = pd.read_csv('../data/text_data.csv')
