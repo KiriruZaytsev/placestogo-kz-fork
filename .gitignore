@@ -3,3 +3,4 @@ venv/
 */.env
 api/generated/
 data/chroma/
+[Ii]mage/
