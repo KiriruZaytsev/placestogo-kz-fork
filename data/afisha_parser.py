@@ -27,10 +27,6 @@ def get_afisha_events():
         logging.info(f"Обрабатываю URL: {url}")
         data = []
 
-        if os.path.exists("Image") and os.path.isdir("Image"):
-            shutil.rmtree("Image")
-            logging.info("Папка 'Image' со старыми данными была удалена")
-
         try:
             response = requests.get(url)
             response.raise_for_status()
@@ -132,7 +128,7 @@ def get_afisha_events():
 
     logging.info("Датафрейм очищен")
 
-    image_folder = "Image"
+    image_folder = "images"
     paths = []
 
     if not os.path.exists(image_folder):
@@ -195,7 +191,6 @@ def get_afisha_events():
         type VARCHAR(100) NOT NULL,
         path VARCHAR(100) NOT NULL
     );
-    TRUNCATE TABLE events;
     """
 
     try:
