@@ -2,6 +2,8 @@ import os
 import sys
 import logging
 
+from dotenv import load_dotenv
+
 import torch
 import chromadb
 from chromadb.config import Settings
@@ -9,6 +11,8 @@ import numpy as np
 import typing as tp
 import pandas as pd
 from sentence_transformers import SentenceTransformer
+
+import psycopg2 as pg
 
 import grpc
 from concurrent.futures import ThreadPoolExecutor
@@ -19,6 +23,10 @@ import vectordb_llm_pb2, vectordb_llm_pb2_grpc
 logger = None
 
 collection = None
+emb_model = None
+
+vectordb_llm_channel = grpc.insecure_channel("localhost:50053")
+vectordb_llm_stub = vectordb_llm_pb2_grpc.VectorDBLLMStub(vectordb_llm_channel)
 
 def create_embeddings(texts: tp.List[str]) -> np.ndarray:
     '''
@@ -35,13 +43,11 @@ def create_embeddings(texts: tp.List[str]) -> np.ndarray:
     return np.array(embeddings)
 
 
+# NOTE(vladeemerr): data is expected to contain `name`, `description`, `town` and `path`
 def add_items_to_collection(collection: chromadb.api.models.Collection.Collection,
                             data: pd.DataFrame) -> None:
     '''
     Добавление новых объектов в векторную базу данных
-    Parameters:
-        data: DataFrame, у которого должны быть 3 поля: 'description' с текстовым описанием мероприятия,
-            'city' с названием города, 'img_path' - путь до изображения
     '''
     names = data['name'].to_list()
     documents = data['description'].to_list()
@@ -55,6 +61,7 @@ def add_items_to_collection(collection: chromadb.api.models.Collection.Collectio
                    embeddings=embeddings,
                    metadatas=metadatas,
                    ids=ids)
+
 
 def process_user_query(collection: chromadb.api.models.Collection.Collection,
                        query: str,
@@ -82,41 +89,52 @@ def process_user_query(collection: chromadb.api.models.Collection.Collection,
     preprocessed_res['img'] = [result['metadatas'][0][i]['img_path'] for i in range(top_k)]
     return preprocessed_res
 
-#    user_query = 'Хочу сходить в театр'
-#    user_city = 'Москва'
-#    retrieved = process_user_query(collection=collection,
-#                                   query=user_query,
-#                                   top_k=5,
-#                                   city=user_city)
-#    context = retrieved['documents'][0]
-#    print(get_answer_llm(user_query, context[0]))
-
-vectordb_llm_channel = grpc.insecure_channel("localhost:50053")
-vectordb_llm_stub = vectordb_llm_pb2_grpc.VectorDBLLMStub(vectordb_llm_channel)
+###
 
 class BotVectorDBService(bot_vectordb_pb2_grpc.BotVectorDBServicer):
 	def Query(self, request, context):
-		vecdb_llm_request = vectordb_llm_pb2.QueryRequest(query=request.text, context="")
+		suggestions = process_user_query(collection, request.text)
+		info = suggestions['documents'][0][0]
+		image_path = suggestions['img'][0]
+		vecdb_llm_request = vectordb_llm_pb2.QueryRequest(query=request.text, context=info)
 		vecdb_llm_response = vectordb_llm_stub.Query(vecdb_llm_request)
-		return bot_vectordb_pb2.ChatResponse(text=vecdb_llm_response.text)
+		return bot_vectordb_pb2.ChatResponse(text=vecdb_llm_response.response, image_path=image_path)
+
+###
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     logger = logging.getLogger()
+
+    load_dotenv()
+
+    conn = pg.connect(
+        dbname=os.getenv("POSTGRES_DB"),
+        user=os.getenv("POSTGRES_USER"),
+        password=os.getenv("POSTGRES_PASSWORD"),
+        host="localhost",
+    )
+    cur = conn.cursor()
+    cur.execute('select version()')
+    ver = cur.fetchone()
+    logger.info(ver)
+
     logger.info("Starting ChromaDB client...")
     chroma_client = chromadb.HttpClient(host='localhost',
                                         port=8000,
                                         settings=Settings(allow_reset=True, anonymized_telemetry=False))
     logger.info("ChromaDB client started!")
 
-    logger.info("Initalizing ChromaDB collection...")
-    #collection = chroma_client.create_collection(name='placestogo1')
-    #emb_model = SentenceTransformer('cointegrated/rubert-tiny2')
-    #emb_model.to('cuda')
+    emb_model = SentenceTransformer('cointegrated/rubert-tiny2')
 
-    #df = pd.read_csv('./data/text_data.csv')
-    #add_items_to_collection(collection=collection,
-    #                        data=df)
+    logger.info("Initalizing ChromaDB collection...")
+    collection = chroma_client.get_or_create_collection('placestogo-vecdb')
+
+    cur.execute('select name, description, town, path from events')
+    df = pd.DataFrame(cur.fetchall(), columns=['name', 'description', 'town', 'path'])
+
+    add_items_to_collection(collection=collection, data=df)
+    logger.info("ChromaDB collection initialized!")
 
     logger.info("Starting gRPC server...")
     server = grpc.server(ThreadPoolExecutor(max_workers=1))

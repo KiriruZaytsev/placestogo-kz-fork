@@ -6,8 +6,7 @@ message QueryRequest {
 }
 
 message QueryResponse {
-	string text = 1;
-	string image_path = 2;
+	string response = 1;
 }
 
 service VectorDBLLM {

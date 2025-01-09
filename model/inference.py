@@ -19,14 +19,14 @@ SYS_ANSW_PROMPT = '''Ты русскоязычный туристический 
 Ответ должен полностью охватывать запрос пользователя. Контекст:
 '''
 
-def get_answer_llm(query: str, context: str) -> tp.Tuple[str, str]:
+def get_answer_llm(query: str, context: str) -> str:
 	'''
 	Функция, формирующая рекомендацию-ответ на запрос пользователя
 	Parameters:
 		query: Запрос пользователя
 		context: Контекст, полученный из векторной бд
 	Return:
-		Предложенный ответ и изображение, связанное с предложенным местом
+		Предложенный ответ, связанный с предложенным местом
 	'''
 	completion = client_llm.chat.completions.create(model='RefalMachine/ruadapt_qwen2.5_3B_ext_u48_instruct_v4',
                                                   messages=[{'role': 'system', 'content': SYS_ANSW_PROMPT + context},
@@ -35,8 +35,8 @@ def get_answer_llm(query: str, context: str) -> tp.Tuple[str, str]:
 
 class VectorDBLLMService(vectordb_llm_pb2_grpc.VectorDBLLMServicer):
 	def Query(self, request, context):
-		text = get_answer_llm(request.query, request.context)
-		return vectordb_llm_pb2.QueryResponse(text=text, image_path="")
+		response = get_answer_llm(request.query, request.context)
+		return vectordb_llm_pb2.QueryResponse(response=response)
 
 if __name__ == '__main__':
 	logging.basicConfig(level=logging.INFO, stream=sys.stdout)

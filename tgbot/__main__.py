@@ -9,7 +9,7 @@ from aiogram import Bot, Dispatcher, Router
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, BotCommand
+from aiogram.types import Message, BotCommand, FSInputFile
 
 import grpc
 
@@ -59,16 +59,12 @@ async def subscribe_handler(message) -> None:
 
 @dp.message()
 async def chat_handler(message: Message) -> None:
-	try:
-		#grpc_request = bot_backend_pb2.MessageRequest(user_id=str(message.from_user.id), text=message.text)
-		#grpc_response = stub.EchoMessage(grpc_request)
+	request = bot_vectordb_pb2.ChatRequest(text=message.text)
+	response = vectordb_stub.Query(request)
+	photo = FSInputFile("./"+response.image_path)
+	await message.answer_photo(photo=photo, caption=response.text, parse_mode='Markdown')
 
-		request = bot_vectordb_pb2.ChatRequest(text=message.text)
-		response = vectordb_stub.Query(request)
-
-		await message.answer(response.text)
-	except TypeError:
-		await message.answer("Unsupported message!")
+###
 
 async def on_startup() -> None:
 	logger.info("Bot is starting...")
