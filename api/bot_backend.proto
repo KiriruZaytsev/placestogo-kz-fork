@@ -1,9 +1,5 @@
 syntax = "proto3";
 
-service MessageService {
-	rpc EchoMessage (MessageRequest) returns (MessageResponse);
-}
-
 message MessageRequest {
 	string user_id = 1;
 	string text = 2;
@@ -11,5 +7,19 @@ message MessageRequest {
 
 message MessageResponse {
 	string text = 1;
+}
+
+message SubscribeRequest {
+	string user_id = 1;
+	string city = 2;
+}
+
+message SubscribeResponse {
+	string text = 1;
+}
+
+service MessageService {
+	rpc EchoMessage (MessageRequest) returns (MessageResponse);
+	rpc Subscribe (SubscribeRequest) returns (SubscribeResponse);
 }
 

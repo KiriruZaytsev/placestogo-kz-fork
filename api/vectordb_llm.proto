@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+message QueryRequest {
+	string query = 1;
+	string context = 2;
+}
+
+message QueryResponse {
+	string text = 1;
+	string image_path = 2;
+}
+
+service VectorDBLLM {
+	rpc Query (QueryRequest) returns (QueryResponse);
+}

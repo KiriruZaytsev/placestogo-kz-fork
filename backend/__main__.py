@@ -12,17 +12,30 @@ import bot_backend_pb2, bot_backend_pb2_grpc
 
 logger = None
 
+conn = None
+
 class MessageServiceServicer(bot_backend_pb2_grpc.MessageServiceServicer):
 	def EchoMessage(self, request, context):
 		logger.info(request.user_id + " said: " + request.text)
 		return bot_backend_pb2.MessageResponse(text=request.text)
 
+	def Subscribe(self, request, context):
+		text: str | None = None
+		if request.city:
+			cur = conn.cursor()
+			cur.execute('')
+			logger.info(request.user_id + " subbed to " + request.city)
+			text = "Теперь вы будете получать ежедневную рассылку об интересностях в городе " + request.city
+		else:
+			logger.info(request.user_id + " attempted to sub with no city name")
+			text = "Введите имя города после команды /subscribe"
+		return bot_backend_pb2.SubscribeResponse(text=text)
+
 if __name__ == "__main__":
-	load_dotenv()
 	logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 	logger = logging.getLogger()
 
-	conn = None
+	load_dotenv()
 
 	try:
 		conn = pg.connect(
@@ -42,9 +55,14 @@ if __name__ == "__main__":
 		server.start()
 		logger.info("Server started!")
 		server.wait_for_termination()
+	except KeyboardInterrupt:
+		logger.info("Stopping server...")
+		server.stop()
+		logger.info("Server stopped!")
 	except (Exception, pg.DatabaseError) as error:
 		print(error)
 	finally:
 		if conn is not None:
+			logger.info("Closing database...")
 			conn.close()
-			print("Closing database")
+			logger.info("Database closed!")

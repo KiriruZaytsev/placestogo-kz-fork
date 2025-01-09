@@ -1,7 +1,7 @@
 #!/bin/sh
 readonly inputdir="./api"
 readonly outputdir="./api/generated"
-readonly protofiles='bot_backend.proto'
+readonly protofiles='bot_backend.proto bot_vectordb.proto vectordb_llm.proto'
 
 if [ ! -d './api' ]; then
 	echo "You should execute this script from the root of repository"
