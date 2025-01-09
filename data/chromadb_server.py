@@ -28,6 +28,9 @@ emb_model = None
 vectordb_llm_channel = grpc.insecure_channel("localhost:50053")
 vectordb_llm_stub = vectordb_llm_pb2_grpc.VectorDBLLMStub(vectordb_llm_channel)
 
+max_suggestions = 5
+storage = dict()
+
 def create_embeddings(texts: tp.List[str]) -> np.ndarray:
     '''
     Создание эмбеддингов для описаний
@@ -94,11 +97,31 @@ def process_user_query(collection: chromadb.api.models.Collection.Collection,
 class BotVectorDBService(bot_vectordb_pb2_grpc.BotVectorDBServicer):
 	def Query(self, request, context):
 		suggestions = process_user_query(collection, request.text)
+		storage[request.user_id] = {
+			'counter': 1,
+			'query': request.text,
+			'documents': suggestions['documents'][0],
+			'images': suggestions['img']
+		}
 		info = suggestions['documents'][0][0]
 		image_path = suggestions['img'][0]
 		vecdb_llm_request = vectordb_llm_pb2.QueryRequest(query=request.text, context=info)
 		vecdb_llm_response = vectordb_llm_stub.Query(vecdb_llm_request)
 		return bot_vectordb_pb2.ChatResponse(text=vecdb_llm_response.response, image_path=image_path)
+
+	def Dislike(self, request, context):
+		index = storage[request.user_id]['counter']
+		if index < max_suggestions:
+			query = storage[request.user_id]['query']
+			info = storage[request.user_id]['documents'][index]
+			image_path = storage[request.user_id]['images'][index]
+			vecdb_llm_request = vectordb_llm_pb2.QueryRequest(query=query, context=info)
+			vecdb_llm_response = vectordb_llm_stub.Query(vecdb_llm_request)
+			storage[request.user_id]['counter'] += 1
+			return bot_vectordb_pb2.ChatResponse(text=vecdb_llm_response.response, image_path=image_path)
+		else:
+			return bot_vectordb_pb2.ChatResponse(text="", image_path="")
+
 
 ###
 

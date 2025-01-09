@@ -5,11 +5,14 @@ import logging
 from dotenv import load_dotenv
 
 import asyncio
-from aiogram import Bot, Dispatcher, Router
+from aiogram import Bot, Dispatcher, Router, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, BotCommand, FSInputFile
+from aiogram.filters.callback_data import CallbackData
+from aiogram.types import Message, BotCommand, FSInputFile, CallbackQuery
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.utils.chat_action import ChatActionSender
 
 import grpc
 
@@ -22,7 +25,8 @@ import bot_vectordb_pb2, bot_vectordb_pb2_grpc
 logger = None
 
 bot = None
-dp = Dispatcher()
+
+router = Router()
 
 channel = grpc.insecure_channel("localhost:50051")
 stub = bot_backend_pb2_grpc.MessageServiceStub(channel)
@@ -41,11 +45,22 @@ custom_commands: dict[str, dict[str, str]] = {
 
 ###
 
-@dp.message(CommandStart())
+class RateCallback(CallbackData, prefix="my"):
+	rating: str
+
+
+button_like = InlineKeyboardButton(text='👍', callback_data=RateCallback(rating='like').pack())
+button_dislike = InlineKeyboardButton(text='👎', callback_data=RateCallback(rating='dislike').pack())
+keyboard = InlineKeyboardMarkup(inline_keyboard=[[button_like, button_dislike]])
+
+###
+
+@router.message(CommandStart())
 async def start_handler(message: Message) -> None:
 	await message.answer(f"Hello, {message.from_user.full_name}!")
 
-@dp.message(Command(commands=["subscribe", "sub"]))
+
+@router.message(Command(commands=["subscribe", "sub"]))
 async def subscribe_handler(message) -> None:
 	words: [str] = message.text.split()
 	city: str = ' '.join(words[1:])
@@ -57,12 +72,63 @@ async def subscribe_handler(message) -> None:
 
 	await message.answer(grpc_response.text)
 
-@dp.message()
+
+@router.message()
 async def chat_handler(message: Message) -> None:
-	request = bot_vectordb_pb2.ChatRequest(text=message.text)
-	response = vectordb_stub.Query(request)
-	photo = FSInputFile("./"+response.image_path)
-	await message.answer_photo(photo=photo, caption=response.text, parse_mode='Markdown')
+	async with ChatActionSender(bot=bot, chat_id=message.from_user.id, action="typing"):
+		request = bot_vectordb_pb2.ChatRequest(text=message.text, user_id=message.from_user.id)
+		response = vectordb_stub.Query(request)
+		photo = FSInputFile("./"+response.image_path) if response.image_path else None
+		if len(response.text) < 1024:
+			if not photo is None:
+				await message.answer_photo(photo=photo,
+				                           caption=response.text,
+				                           parse_mode='Markdown',
+				                           reply_markup=keyboard)
+			else:
+				await message.answer(text=response.text,
+				                     parse_mode='Markdown',
+				                     reply_markup=keyboard)
+		else:
+			if not photo is None:
+				await message.answer_photo(photo)
+			await message.answer(text=response.text,
+			                     parse_mode='Markdown',
+			                     reply_markup=keyboard)
+
+
+@router.callback_query(RateCallback.filter(F.rating == 'like'))
+async def like_button_handler(query: CallbackQuery):
+	await bot.send_message(query.from_user.id, 'Спасибо!')
+
+
+@router.callback_query(RateCallback.filter(F.rating == 'dislike'))
+async def dislike_button_handler(query: CallbackQuery):
+	async with ChatActionSender(bot=bot, chat_id=query.from_user.id, action="typing"):
+		await query.message.answer('Хорошо, поищу ещё что-нибудь...')
+		request = bot_vectordb_pb2.RateRequest(user_id=query.from_user.id)
+		response = vectordb_stub.Dislike(request)
+		if response.text:
+			photo = FSInputFile("./"+response.image_path) if response.image_path else None
+			if len(response.text) < 1024:
+				if not photo is None:
+					await query.message.answer_photo(photo=photo,
+					                                 caption=response.text,
+					                                 parse_mode='Markdown',
+					                                 reply_markup=keyboard)
+				else:
+					await message.answer(text=response.text,
+					                     parse_mode='Markdown',
+					                     reply_markup=keyboard)
+			else:
+				if not photo is None:
+					await query.message.answer_photo(photo)
+				await query.message.answer(text=response.text,
+				                           parse_mode='Markdown',
+				                           reply_markup=keyboard)
+		else:
+			await query.message.answer(text='К сожалению, больше предложений у меня нет...')
+
 
 ###
 
@@ -99,6 +165,9 @@ if __name__ == "__main__":
 	load_dotenv()
 
 	bot = Bot(token=os.getenv("BOT_TOKEN"), default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+	dp = Dispatcher()
+	dp.include_routers(router)
+
 	try:
 		asyncio.run(main())
 	finally:
