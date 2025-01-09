@@ -117,9 +117,9 @@ async def dislike_button_handler(query: CallbackQuery):
 					                                 parse_mode='Markdown',
 					                                 reply_markup=keyboard)
 				else:
-					await message.answer(text=response.text,
-					                     parse_mode='Markdown',
-					                     reply_markup=keyboard)
+					await query.message.answer(text=response.text,
+					                           parse_mode='Markdown',
+					                           reply_markup=keyboard)
 			else:
 				if not photo is None:
 					await query.message.answer_photo(photo)
