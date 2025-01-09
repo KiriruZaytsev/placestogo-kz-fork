@@ -185,11 +185,11 @@ def get_afisha_events():
 
     query = """
     CREATE TABLE IF NOT EXISTS events (
-        name VARCHAR(500) NOT NULL,
+        name TEXT NOT NULL UNIQUE,
         description TEXT NOT NULL,
         town VARCHAR(100) NOT NULL,
         type VARCHAR(100) NOT NULL,
-        path VARCHAR(100) NOT NULL
+        path TEXT
     );
     """
 
