@@ -1,25 +1,25 @@
 syntax = "proto3";
 
-message MessageRequest {
-	string user_id = 1;
-	string text = 2;
-}
-
-message MessageResponse {
-	string text = 1;
-}
-
-message SubscribeRequest {
-	string user_id = 1;
+message StartRequest {
+	uint64 user_id = 1;
 	string city = 2;
 }
 
-message SubscribeResponse {
-	string text = 1;
+message StartResponse {
+	bool success = 1;
 }
 
-service MessageService {
-	rpc EchoMessage (MessageRequest) returns (MessageResponse);
-	rpc Subscribe (SubscribeRequest) returns (SubscribeResponse);
+message ChatRequest {
+	uint64 user_id = 1;
+	string query = 2;
+}
+
+message ChatResponse {
+
+}
+
+service BotBackend {
+	rpc Start(StartRequest) returns (StartResponse);
+	rpc Chat(ChatRequest) returns (ChatResponse);
 }
 
