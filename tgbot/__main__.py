@@ -78,7 +78,11 @@ async def chat_handler(message: Message) -> None:
 	async with ChatActionSender(bot=bot, chat_id=message.from_user.id, action="typing"):
 		request = bot_vectordb_pb2.ChatRequest(text=message.text, user_id=message.from_user.id)
 		response = vectordb_stub.Query(request)
-		photo = FSInputFile("./"+response.image_path) if response.image_path else None
+		try:
+			photo = FSInputFile("./"+response.image_path) if response.image_path else None
+		except Exception as error:
+			print(error)
+			photo = None
 		if len(response.text) < 1024:
 			if not photo is None:
 				await message.answer_photo(photo=photo,
@@ -109,7 +113,11 @@ async def dislike_button_handler(query: CallbackQuery):
 		request = bot_vectordb_pb2.RateRequest(user_id=query.from_user.id)
 		response = vectordb_stub.Dislike(request)
 		if response.text:
-			photo = FSInputFile("./"+response.image_path) if response.image_path else None
+			try:
+				photo = FSInputFile("./"+response.image_path) if response.image_path else None
+			except Exception as error:
+				print(error)
+				photo = None
 			if len(response.text) < 1024:
 				if not photo is None:
 					await query.message.answer_photo(photo=photo,

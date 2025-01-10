@@ -151,6 +151,7 @@ if __name__ == '__main__':
     emb_model = SentenceTransformer('cointegrated/rubert-tiny2')
 
     logger.info("Initalizing ChromaDB collection...")
+    chroma_client.delete_collection('placestogo-vecdb')
     collection = chroma_client.get_or_create_collection('placestogo-vecdb')
 
     cur.execute('select name, description, town, path from events')
