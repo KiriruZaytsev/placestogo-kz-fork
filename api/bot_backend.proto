@@ -11,15 +11,21 @@ message StartResponse {
 
 message ChatRequest {
 	uint64 user_id = 1;
-	string query = 2;
+	string text = 2;
 }
 
 message ChatResponse {
+	string text = 1;
+	string image_path = 2;
+}
 
+message RateRequest {
+	uint64 user_id = 1;
 }
 
 service BotBackend {
 	rpc Start(StartRequest) returns (StartResponse);
 	rpc Chat(ChatRequest) returns (ChatResponse);
+	rpc Dislike (RateRequest) returns (ChatResponse);
 }
 

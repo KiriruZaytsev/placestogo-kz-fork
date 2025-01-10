@@ -7,14 +7,9 @@ from aiogram.types import Message, BotCommand, FSInputFile, CallbackQuery
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.chat_action import ChatActionSender
 
-import grpc
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../api/generated')))
-import bot_vectordb_pb2, bot_vectordb_pb2_grpc
-
 from . import core
 
-bot_vectordb_channel = grpc.insecure_channel("localhost:50052")
-vectordb_stub = bot_vectordb_pb2_grpc.BotVectorDBStub(bot_vectordb_channel)
+import bot_backend_pb2
 
 class RateCallback(CallbackData, prefix="my"):
 	rating: str
@@ -28,8 +23,8 @@ router = Router()
 @router.message()
 async def chat_handler(message: Message) -> None:
 	async with ChatActionSender(bot=core.bot, chat_id=message.from_user.id, action="typing"):
-		request = bot_vectordb_pb2.ChatRequest(text=message.text, user_id=message.from_user.id)
-		response = vectordb_stub.Query(request)
+		request = bot_backend_pb2.ChatRequest(user_id=message.from_user.id, text=message.text)
+		response = core.bot_backend_stub.Chat(request)
 		try:
 			photo = FSInputFile("./"+response.image_path) if response.image_path else None
 		except Exception as error:
@@ -60,10 +55,10 @@ async def like_button_handler(query: CallbackQuery):
 
 @router.callback_query(RateCallback.filter(F.rating == 'dislike'))
 async def dislike_button_handler(query: CallbackQuery):
-	async with ChatActionSender(bot=bot, chat_id=query.from_user.id, action="typing"):
+	async with ChatActionSender(bot=core.bot, chat_id=query.from_user.id, action="typing"):
 		await query.message.answer('Хорошо, поищу ещё что-нибудь...')
-		request = bot_vectordb_pb2.RateRequest(user_id=query.from_user.id)
-		response = vectordb_stub.Dislike(request)
+		request = bot_backend_pb2.RateRequest(user_id=query.from_user.id)
+		response = core.bot_backend_stub.Dislike(request)
 		if response.text:
 			try:
 				photo = FSInputFile("./"+response.image_path) if response.image_path else None

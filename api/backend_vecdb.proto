@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+message EmbedRequest {
+	uint64 user_id = 1;
+	string query = 2;
+	string city = 3;
+}
+
+message EmbedResponse {
+	string text = 1;
+	string image_path = 2;
+}
+
+message GetNextRequest {
+	uint64 user_id = 1;
+}
+
+service BackendVectorDB {
+	rpc Embed(EmbedRequest) returns (EmbedResponse);
+	rpc GetNext(GetNextRequest) returns (EmbedResponse);
+}

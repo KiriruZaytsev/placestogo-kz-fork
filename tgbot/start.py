@@ -4,15 +4,9 @@ from aiogram.types import Message
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
-import grpc
+from . import core
 
-import os
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../api/generated')))
-import bot_backend_pb2, bot_backend_pb2_grpc
-
-bot_backend_channel = grpc.insecure_channel("localhost:50051")
-bot_backend_stub = bot_backend_pb2_grpc.BotBackendStub(bot_backend_channel)
+import bot_backend_pb2
 
 router = Router()
 
@@ -38,7 +32,7 @@ async def city_handler(message: Message, state: FSMContext):
 	city = " ".join(message_parts)
 
 	request = bot_backend_pb2.StartRequest(user_id=message.from_user.id, city=city)
-	response = bot_backend_stub.Start(request)
+	response = core.bot_backend_stub.Start(request)
 
 	if response.success:
 		await state.clear()

@@ -17,7 +17,7 @@ import psycopg2 as pg
 import grpc
 from concurrent.futures import ThreadPoolExecutor
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../api/generated')))
-import bot_vectordb_pb2, bot_vectordb_pb2_grpc
+import backend_vecdb_pb2, backend_vecdb_pb2_grpc
 import vectordb_llm_pb2, vectordb_llm_pb2_grpc
 
 logger = None
@@ -94,33 +94,33 @@ def process_user_query(collection: chromadb.api.models.Collection.Collection,
 
 ###
 
-class BotVectorDBService(bot_vectordb_pb2_grpc.BotVectorDBServicer):
-	def Query(self, request, context):
-		suggestions = process_user_query(collection, request.text)
+class BackendVectorDBService(backend_vecdb_pb2_grpc.BackendVectorDBServicer):
+	def Embed(self, request, context):
+		suggestions = process_user_query(collection, request.query, max_suggestions, request.city)
 		storage[request.user_id] = {
 			'counter': 1,
-			'query': request.text,
+			'query': request.query,
 			'documents': suggestions['documents'][0],
 			'images': suggestions['img']
 		}
 		info = suggestions['documents'][0][0]
 		image_path = suggestions['img'][0]
-		vecdb_llm_request = vectordb_llm_pb2.QueryRequest(query=request.text, context=info)
+		vecdb_llm_request = vectordb_llm_pb2.QueryRequest(query=request.query, context=info)
 		vecdb_llm_response = vectordb_llm_stub.Query(vecdb_llm_request)
-		return bot_vectordb_pb2.ChatResponse(text=vecdb_llm_response.response, image_path=image_path)
+		return backend_vecdb_pb2.EmbedResponse(text=vecdb_llm_response.response, image_path=image_path)
 
-	def Dislike(self, request, context):
-		index = storage[request.user_id]['counter']
-		if index < max_suggestions:
-			query = storage[request.user_id]['query']
-			info = storage[request.user_id]['documents'][index]
-			image_path = storage[request.user_id]['images'][index]
-			vecdb_llm_request = vectordb_llm_pb2.QueryRequest(query=query, context=info)
-			vecdb_llm_response = vectordb_llm_stub.Query(vecdb_llm_request)
-			storage[request.user_id]['counter'] += 1
-			return bot_vectordb_pb2.ChatResponse(text=vecdb_llm_response.response, image_path=image_path)
-		else:
-			return bot_vectordb_pb2.ChatResponse(text="", image_path="")
+	def GetNext(self, request, context):
+		if request.user_id in storage.keys():
+			index = storage[request.user_id]['counter']
+			if index < max_suggestions:
+				query = storage[request.user_id]['query']
+				info = storage[request.user_id]['documents'][index]
+				image_path = storage[request.user_id]['images'][index]
+				vecdb_llm_request = vectordb_llm_pb2.QueryRequest(query=query, context=info)
+				vecdb_llm_response = vectordb_llm_stub.Query(vecdb_llm_request)
+				storage[request.user_id]['counter'] += 1
+				return backend_vecdb_pb2.EmbedResponse(text=vecdb_llm_response.response, image_path=image_path)
+		return backend_vecdb_pb2.EmbedResponse(text="", image_path="")
 
 
 ###
@@ -137,10 +137,6 @@ if __name__ == '__main__':
         password=os.getenv("POSTGRES_PASSWORD"),
         host="localhost",
     )
-    cur = conn.cursor()
-    cur.execute('select version()')
-    ver = cur.fetchone()
-    logger.info(ver)
 
     logger.info("Starting ChromaDB client...")
     chroma_client = chromadb.HttpClient(host='localhost',
@@ -154,6 +150,7 @@ if __name__ == '__main__':
     chroma_client.delete_collection('placestogo-vecdb')
     collection = chroma_client.get_or_create_collection('placestogo-vecdb')
 
+    cur = conn.cursor()
     cur.execute('select name, description, town, path from events')
     df = pd.DataFrame(cur.fetchall(), columns=['name', 'description', 'town', 'path'])
 
@@ -161,8 +158,8 @@ if __name__ == '__main__':
     logger.info("ChromaDB collection initialized!")
 
     logger.info("Starting gRPC server...")
-    server = grpc.server(ThreadPoolExecutor(max_workers=1))
-    bot_vectordb_pb2_grpc.add_BotVectorDBServicer_to_server(BotVectorDBService(), server)
+    server = grpc.server(ThreadPoolExecutor(max_workers=10))
+    backend_vecdb_pb2_grpc.add_BackendVectorDBServicer_to_server(BackendVectorDBService(), server)
     server.add_insecure_port("[::]:50052")
     server.start()
     logger.info("gRPC server started!")
