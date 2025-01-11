@@ -6,10 +6,11 @@ from dotenv import load_dotenv
 
 import torch
 import chromadb
-from chromadb.config import Settings
 import numpy as np
 import typing as tp
 import pandas as pd
+from rank_bm25 import BM25Okapi
+from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
 
 import psycopg2 as pg
@@ -66,8 +67,24 @@ def add_items_to_collection(collection: chromadb.api.models.Collection.Collectio
                    ids=ids)
 
 
+def rerank_items(documents: tp.List[str]) -> tp.List[int]:
+    '''
+    Делает реранкинг найденных с помощью ALS эмбеддингов
+    Parameters:
+        documents: Список с документами
+    Return:
+        Список индексов переранжированных документов
+    '''
+    splitted_docs = [txt.split() for txt in documents]
+    bm25 = BM25Okapi(splitted_docs)
+    bm25_scores = bm25.get_scores(splitted_docs)
+    indicies = np.argsort(bm25_scores)[::-1]
+    return indicies
+
+
 def process_user_query(collection: chromadb.api.models.Collection.Collection,
                        query: str,
+                       start_k_docs: int=100,
                        top_k: int=5,
                        city: str='Москва') -> tp.Dict[str, tp.Any]:
     '''
@@ -83,16 +100,16 @@ def process_user_query(collection: chromadb.api.models.Collection.Collection,
     filter = {'city': city}
     query_embeddings = create_embeddings([query])
     result = collection.query(query_embeddings=query_embeddings,
-                              n_results=top_k,
+                              n_results=start_k_docs,
                               where=filter,
                               include=['documents', 'metadatas'])
+    top_k_indicies = rerank_items(result['documents'][0])[:top_k]
     preprocessed_res = {}
-    preprocessed_res['city'] = [result['metadatas'][0][i]['city'] for i in range(top_k)]
-    preprocessed_res['documents'] = result['documents']
-    preprocessed_res['img'] = [result['metadatas'][0][i]['img_path'] for i in range(top_k)]
+    preprocessed_res['city'] = [result['metadatas'][0][idx]['city'] for idx in top_k_indicies]
+    preprocessed_res['documents'] = [result['documents'][idx] for idx in top_k_indicies]
+    preprocessed_res['img'] = [result['metadatas'][0][idx]['img_path'] for idx in top_k_indicies]
     return preprocessed_res
 
-###
 
 class BackendVectorDBService(backend_vecdb_pb2_grpc.BackendVectorDBServicer):
 	def Embed(self, request, context):

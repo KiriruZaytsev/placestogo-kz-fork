@@ -29,8 +29,8 @@ def get_answer_llm(query: str, context: str) -> str:
 		Предложенный ответ, связанный с предложенным местом
 	'''
 	completion = client_llm.chat.completions.create(model='RefalMachine/ruadapt_qwen2.5_3B_ext_u48_instruct_v4',
-                                                  messages=[{'role': 'system', 'content': SYS_ANSW_PROMPT + context},
-                                                            {'role': 'user', 'content': query}])
+                                                    messages=[{'role': 'system', 'content': SYS_ANSW_PROMPT + context},
+                                                              {'role': 'user', 'content': query}])
 	return completion.choices[0].message.content
 
 class VectorDBLLMService(vectordb_llm_pb2_grpc.VectorDBLLMServicer):
