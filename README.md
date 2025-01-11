@@ -1,6 +1,16 @@
 # Places To Go
+Fork курсового проекта 
+Tg-бот с рекомендациями мероприятий 
 
-## Запуск сервера ChromaDB
+## Work in progress
+- [] В качестве retriever'а попробовать BM25
+- [] Сделать цикл с уточняющими вопросами для вопросов с недостаточно объёмным контекстом
+- [] Протестировать различные метрики полноты контекста для запросов
+- [] Протестировать другие LLM
+- [] Сделать мультиагента
+- [] Оформить тестовый сет для подсчета метрик
+ 
+### Запуск сервера ChromaDB
 Для запуска сервера ChromaDB необходимо выполнить следующую команду:
 ```
 docker run -d --rm --name chromadb -p 8000:8000 \
@@ -8,8 +18,12 @@ docker run -d --rm --name chromadb -p 8000:8000 \
         -e IS_PERSISTENT=TRUE chromadb/chroma:0.5.13
 ```
 
-## Запуск сервера с LLM
+### Запуск сервера с LLM
 Для запуска сервера vllm необходимо в консоли Cloud.ru выполнить следующую команду:
 ```
-vllm serve RefalMachine/ruadapt_qwen2.5_3B_ext_u48_instruct_v4
+vllm serve RefalMachine/ruadapt_qwen2.5_7B_ext_u48_instruct_v4
 ```
+
+### Благодарность
+[Владимир Бахарев](https://github.com/vladeemerr) Backend бота
+[Артём Морозов](https://github.com/artemmoroz0v) Парсинг Яндекс Афиши
